@@ -101,7 +101,9 @@ button{ font-family:inherit; }
   color:var(--reed); font-weight:700; margin-bottom:6px; display:block;
 }
 .section-head h2{ font-size:1.55rem; }
-.section-head p{ color:var(--ink-soft); margin-top:6px; max-width:60ch; line-height:1.6; }
+.section-head p{ color:var(--ink-soft); margin-top:6px; line-height:1.6; }
+/* 한글이 단어 중간에서 끊기지 않게 */
+body{ word-break:keep-all; overflow-wrap:anywhere; }
 
 .note{
   font-size:0.8rem; color:var(--ink-soft); background:var(--mist);
@@ -541,7 +543,7 @@ img{ -webkit-touch-callout:none; -webkit-user-drag:none; user-select:none; -webk
   .project-hero .kicker{ font-size:.62rem; }
   .project-hero h1{ font-size:1.15rem; margin:4px 0; }
   .project-hero p{ font-size:.82rem; line-height:1.5; }
-  .project-hero p br, .esg-pill br, .section-head p br{ display:none; }
+  .project-hero p br, .esg-pill br{ display:none; }
   .esg-ribbon{ grid-template-columns:1fr; gap:5px; }
   .esg-pill{ display:flex; align-items:center; gap:10px; padding:7px 11px; border-radius:10px; }
   .esg-pill b{ flex:none; width:104px; margin:0; font-size:.72rem; }
@@ -825,9 +827,9 @@ img{ -webkit-touch-callout:none; -webkit-user-drag:none; user-select:none; -webk
     <div class="section-head">
       <span class="eyebrow">러닝코스 추천</span>
       <h2>태화강 러닝코스</h2>
-      <p>코스 카드를 누르면 실제 태화강 국가정원 지도 위에서 경유지 흐름을 확인할 수 있습니다. 친환경 이동(E), 건강한 여가(S), 공식정보 기반 안내(G)를 코스별로 함께 표시했습니다.</p>
+      <p>코스 카드를 누르면 실제 태화강 국가정원 지도 위에서 경유지 흐름을 확인할 수 있습니다. <br>친환경 이동(E), 건강한 여가(S), 공식정보 기반 안내(G)를 코스별로 함께 표시했습니다.</p>
     </div>
-    <div class="info-banner">발표용 목업입니다. 거리·시간·경유지는 기존 러닝 자료를 기반으로 구성하고, 장소·시설 정보는 울산광역시 태화강 국가정원 공식 홈페이지를 우선 출처로 사용합니다.</div>
+    <div class="info-banner">발표용 목업입니다. <br>거리·시간·경유지는 기존 러닝 자료를 기반으로 구성하고, 장소·시설 정보는 울산광역시 태화강 국가정원 공식 홈페이지를 우선 출처로 사용합니다.</div>
 
     <div class="course-list" id="courseList"></div>
 
@@ -846,7 +848,7 @@ img{ -webkit-touch-callout:none; -webkit-user-drag:none; user-select:none; -webk
     <div class="section-head">
       <span class="eyebrow">함께해요 ESG 실천</span>
       <h2>작은 실천, 함께 인증해요</h2>
-      <p>미션을 확인하고 사진이나 한 줄로 인증해 보세요. 올린 내용은 모두에게 공개돼요.</p>
+      <p>미션을 확인하고 사진이나 한 줄로 인증해 보세요. <br>올린 내용은 모두에게 공개돼요.</p>
     </div>
     <div id="missionList"></div>
   </section>
