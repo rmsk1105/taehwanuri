@@ -277,6 +277,8 @@ button{ font-family:inherit; }
 .result-list .result-rec .body{ flex:1; min-width:0; }
 .result-list .result-rec .btn{ flex:none; padding:6px 12px; font-size:0.8rem; }
 
+.review-photo{ display:block; max-width:100%; max-height:180px; border-radius:10px; margin-top:6px; }
+
 /* ---------- lists / cards ---------- */
 .grid{ display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); }
 .card{
@@ -703,7 +705,7 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
     </div>
 
     <div class="safety-note">
-      📌 업로드 안전장치(예정): JPG·PNG만 허용 · 파일 용량 제한 · 사진의 촬영일시·GPS 위치정보 자동 제거 · 신고 및 삭제 요청 기능 제공
+      📌 업로드 안전장치: JPG·PNG만 허용 · 5MB 제한 · 사진의 촬영일시·GPS 위치정보 자동 제거 · 관리자 숨김·삭제
     </div>
 
     <form class="form-box" id="registerForm">
@@ -760,7 +762,7 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
     <div class="section-head">
       <span class="eyebrow">함께해요 ESG 실천</span>
       <h2>작은 실천, 함께 인증해요</h2>
-      <p>미션을 확인하고 인증 사진을 올려보세요.</p>
+      <p>미션을 확인하고 인증 사진을 올려보세요. 올린 사진은 모두에게 공개돼요.</p>
     </div>
     <div id="missionList"></div>
   </section>
@@ -1387,15 +1389,48 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
   }
   function refreshReviews(){
     if(!USE_SERVER) return Promise.resolve();
-    return sbFetch('reviews?select=spot_key,note,created_at&hidden=eq.false&order=created_at.desc&limit=500')
+    return sbFetch('reviews?select=spot_key,note,photo_path,created_at&hidden=eq.false&order=created_at.desc&limit=500')
       .then(function(res){ return res.json(); })
       .then(function(rows){ remoteReviews = rows; remoteState = 'ok'; })
       .catch(function(e){ remoteState = 'error'; console.error('후기 불러오기 실패', e); })
       .then(function(){ renderRegistry(); updateReviewPanel(); });
   }
 
+  // 사진: 브라우저에서 새 JPG 로 다시 그려 촬영일시·위치정보(EXIF)를 지우고 줄여서 올린다.
+  function photoUrl(path){ return path ? SUPABASE_URL + '/storage/v1/object/public/photos/' + encodeURIComponent(path) : null; }
+  function checkPhoto(file){
+    if(file.type !== 'image/jpeg' && file.type !== 'image/png') return 'JPG 또는 PNG 파일만 업로드할 수 있어요.';
+    if(file.size > 5 * 1024 * 1024) return '파일 용량이 너무 커요 (5MB 이하로 올려주세요).';
+    return '';
+  }
+  function toJpeg(file){
+    return new Promise(function(resolve, reject){
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function(){
+        var k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+        var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function(b){ b ? resolve(b) : reject(new Error('사진 변환 실패')); }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('사진을 읽지 못함')); };
+      img.src = url;
+    });
+  }
+  function uploadPhoto(file){
+    var name = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(16)), function(n){ return ('0' + n.toString(16)).slice(-2); }).join('') + '.jpg';
+    return toJpeg(file).then(function(blob){
+      var headers = { apikey:SUPABASE_KEY, 'Content-Type':'image/jpeg' };
+      if(SUPABASE_KEY.indexOf('eyJ') === 0) headers.Authorization = 'Bearer ' + SUPABASE_KEY;
+      return fetch(SUPABASE_URL + '/storage/v1/object/photos/' + name, { method:'POST', headers:headers, body:blob });
+    }).then(function(res){ if(!res.ok) throw new Error('HTTP ' + res.status); return name; });
+  }
+
   var REG_KEY = 'taehwanuri_registry_demo';
   var pendingPhoto = null;
+  var pendingFile = null;
 
   var MAX_PHOTO_BYTES = 5 * 1024 * 1024;
   document.getElementById('placePhoto').addEventListener('change', function(e){
@@ -1404,6 +1439,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     var errorEl = document.getElementById('photoError');
     preview.innerHTML = '';
     errorEl.style.display = 'none';
+    pendingFile = null;
     if(!file) { pendingPhoto = null; return; }
     if(file.type !== 'image/jpeg' && file.type !== 'image/png'){
       errorEl.textContent = 'JPG 또는 PNG 파일만 업로드할 수 있어요.';
@@ -1417,6 +1453,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     }
     var url = URL.createObjectURL(file);
     pendingPhoto = url;
+    pendingFile = file;
     var img = document.createElement('img');
     img.src = url; img.className = 'thumb';
     preview.appendChild(img);
@@ -1437,7 +1474,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     }
     // renderRegistry 는 오래된 것 → 최신 순 배열을 받아 뒤집어 보여준다
     var list = USE_SERVER
-      ? remoteReviews.slice(0, 20).reverse().map(function(r){ return { name:spots[r.spot_key] ? spots[r.spot_key].title : '', note:r.note }; })
+      ? remoteReviews.slice(0, 20).reverse().map(function(r){ return { name:spots[r.spot_key] ? spots[r.spot_key].title : '', note:r.note, photo:photoUrl(r.photo_path) }; })
       : loadRegistry();
     if(list.length === 0){
       el.innerHTML = '<div class="registry-empty">아직 등록된 여행지가 없어요. 첫 기록을 남겨보세요.</div>';
@@ -1469,6 +1506,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
       form.reset();
       document.getElementById('photoPreview').innerHTML = '';
       pendingPhoto = null;
+      pendingFile = null;
     }
     if(!USE_SERVER){
       var list = loadRegistry();
@@ -1481,10 +1519,12 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     if(!note){ statusEl.textContent = '한 줄 소감을 적어주세요.'; return; }
     submitBtn.disabled = true;
     statusEl.textContent = '등록하는 중이에요…';
-    sbFetch('reviews', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', Prefer:'return=minimal' },
-      body:JSON.stringify({ spot_key:spotKey, note:note })
+    (pendingFile ? uploadPhoto(pendingFile) : Promise.resolve(null)).then(function(photoPath){
+      return sbFetch('reviews', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Prefer:'return=minimal' },
+        body:JSON.stringify({ spot_key:spotKey, note:note, photo_path:photoPath })
+      });
     }).then(function(){
       done();
       statusEl.textContent = '후기가 등록됐어요.';
@@ -1496,7 +1536,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
   });
 
   if(USE_SERVER){
-    document.getElementById('registerHint').textContent = '※ 후기 글은 모두에게 공개돼요. 사진은 아직 저장되지 않아요.';
+    document.getElementById('registerHint').textContent = '※ 후기 글과 사진은 모두에게 공개돼요.';
     document.querySelector('.tab[data-tab="register"]').addEventListener('click', function(){ refreshReviews(); });
   }
   renderRegistry();
@@ -1508,10 +1548,10 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
   var ReviewStore = {
     list: function(spotKey){
       var source = USE_SERVER
-        ? remoteReviews.map(function(r){ return { spot:r.spot_key, note:r.note }; })
+        ? remoteReviews.map(function(r){ return { spot:r.spot_key, note:r.note, photo:photoUrl(r.photo_path) }; })
         : loadRegistry();
       var mine = source.filter(function(r){ return r.spot === spotKey && r.note; })
-        .map(function(r){ return { text:r.note, who:'이용자' }; });
+        .map(function(r){ return { text:r.note, who:'이용자', photo:USE_SERVER ? r.photo : null }; });
       return (REVIEW_SAMPLES[spotKey] || []).map(function(t){ return { text:t, who:'이용자', sample:true }; }).concat(mine);
     }
   };
@@ -1534,6 +1574,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     }
     reviewBodyEl.innerHTML = pickRandom(all, 3).map(function(r){
       return '<div class="review-item">' + escapeHtml(r.text) +
+        (r.photo ? '<img class="review-photo" src="' + escapeHtml(r.photo) + '" alt="후기 사진" loading="lazy">' : '') +
         '<div class="review-meta">' + escapeHtml(r.who) + (r.sample ? '<span class="review-tag">예시</span>' : '') + '</div></div>';
     }).join('') + (all.length > 3 ? '<button type="button" class="review-more">다른 후기 보기</button>' : '');
   }
@@ -1694,7 +1735,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     try{ localStorage.setItem(MISSION_KEY, JSON.stringify(data)); }catch(e){}
   }
 
-  var missionData = loadMissionPhotos();
+  var missionData = USE_SERVER ? {} : loadMissionPhotos();
   var missionListEl = document.getElementById('missionList');
   missionListEl.innerHTML = missions.map(function(m){
     return '<div class="mission" id="mission-'+m.id+'">' +
@@ -1712,6 +1753,10 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     input.addEventListener('change', function(e){
       var file = e.target.files[0];
       if(!file) return;
+      e.target.value = '';
+      var invalid = checkPhoto(file);
+      if(invalid){ alert(invalid); return; }
+      if(USE_SERVER){ postMission(m.id, file, input); return; }
       var url = URL.createObjectURL(file);
       if(!missionData[m.id]) missionData[m.id] = [];
       missionData[m.id].push(url);
@@ -1720,13 +1765,49 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     });
     renderMissionGallery(m.id);
   });
+  if(USE_SERVER) refreshMissions();
 
   function renderMissionGallery(id){
     var photos = missionData[id] || [];
     document.getElementById('gallery-'+id).innerHTML = photos.map(function(url){
-      return '<img src="'+url+'" alt="인증 사진">';
+      return '<img src="'+escapeHtml(url)+'" alt="인증 사진" loading="lazy">';
     }).join('');
-    document.getElementById('count-'+id).textContent = photos.length + '명이 인증했어요 (이 브라우저 기준 데모)';
+    document.getElementById('count-'+id).textContent = USE_SERVER
+      ? '인증 ' + photos.length + '건'
+      : photos.length + '명이 인증했어요 (이 브라우저 기준 데모)';
+  }
+  function refreshMissions(){
+    return sbFetch('mission_posts?select=mission_id,photo_path&hidden=eq.false&order=created_at.desc&limit=500')
+      .then(function(res){ return res.json(); })
+      .then(function(rows){
+        missionData = {};
+        rows.forEach(function(r){ (missionData[r.mission_id] = missionData[r.mission_id] || []).push(photoUrl(r.photo_path)); });
+        missions.forEach(function(m){ renderMissionGallery(m.id); });
+      })
+      .catch(function(e){
+        console.error('인증 사진 불러오기 실패', e);
+        missions.forEach(function(m){ document.getElementById('count-'+m.id).textContent = '인증 사진을 불러오지 못했어요.'; });
+      });
+  }
+  function postMission(id, file, input){
+    if(!confirm('이 사진은 모두에게 공개돼요.\n타인의 얼굴·차량번호판 등 개인정보가 없는 사진인가요?')) return;
+    var countEl = document.getElementById('count-'+id);
+    input.disabled = true;
+    countEl.textContent = '올리는 중이에요…';
+    uploadPhoto(file).then(function(photoPath){
+      return sbFetch('mission_posts', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Prefer:'return=minimal' },
+        body:JSON.stringify({ mission_id:id, photo_path:photoPath })
+      });
+    }).then(refreshMissions).catch(function(e){
+      console.error('인증 등록 실패', e);
+      renderMissionGallery(id);
+      alert('사진을 올리지 못했어요. 잠시 후 다시 시도해주세요.');
+    }).then(function(){ input.disabled = false; });
+  }
+  if(USE_SERVER){
+    document.querySelector('.tab[data-tab="esg"]').addEventListener('click', refreshMissions);
   }
 })();
 </script>

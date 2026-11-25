@@ -28,11 +28,12 @@
   .meta{ font-size:.78rem; color:#6b7c73; }
   .note{ margin:8px 0 12px; white-space:pre-wrap; overflow-wrap:anywhere; }
   .actions{ display:flex; gap:8px; }
+  .photo{ display:block; max-width:100%; max-height:220px; border-radius:10px; margin:8px 0 12px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>태화누리 후기 관리</h1>
+  <h1>태화누리 게시물 관리</h1>
 
   <form class="box" id="loginForm">
     <label>이메일<input type="email" id="email" autocomplete="username" required></label>
@@ -43,6 +44,11 @@
   <section id="panel" hidden>
     <div class="toolbar">
       <span id="count"></span>
+      <select id="kind" aria-label="종류">
+        <option value="all">후기+ESG</option>
+        <option value="reviews">후기</option>
+        <option value="mission_posts">ESG 인증</option>
+      </select>
       <select id="filter" aria-label="보기 필터">
         <option value="all">전체</option>
         <option value="visible">공개 중</option>
@@ -64,6 +70,7 @@
   var SUPABASE_KEY = 'sb_publishable_wA0vXtcVSK7PnRDQNQFaYQ_NJtS3CXF';
   var SPOTS = {"g1":"보라정원","g2":"무지개정원(오산못)","g3":"국화정원","g4":"초화원","g5":"자연주의정원","g6":"모네의 정원(수생식물관)","g7":"작가정원","g8":"U-5가든","g9":"향기정원","g10":"작약원","g11":"무궁화정원","e1":"은행나무정원","e2":"철새홍보관","e3":"조류생태원","e4":"숲속정원","e5":"은하수길","e6":"대나무생태원","e7":"대나무 테마정원","e8":"나비생태원","e9":"십리대숲","v1":"은하수다리","v2":"만회정","v3":"태화강 전망대","v4":"태화강 동굴피아","v5":"십리대밭교","v6":"태화루 · 태화루 스카이워크","r1":"철새광장","r2":"잔디원","r3":"오산광장","r4":"무장애 전기관람차 · 안내센터","r5":"어린이놀이터","r6":"만남의 광장","r7":"왕버들마당","r8":"소풍마당","r9":"야외공연장"};
 
+  var MISSIONS = { trash:'쓰레기 분리배출', transit:'저탄소 이동', local:'지역 공간 이용', report:'정보·안전 제보' };
   var token = null;   // 메모리에만 보관: 새로고침하면 다시 로그인
   var userId = null;
   var rows = [];
@@ -118,10 +125,16 @@
   });
 
   function load(){
-    say('후기를 불러오는 중이에요…');
-    return api('/rest/v1/reviews?select=id,spot_key,note,hidden,created_at&order=created_at.desc&limit=1000')
-      .then(function(data){ rows = data; render(); say(''); })
-      .catch(function(e){ fail(e, '후기를 불러오지 못했어요.'); });
+    say('게시물을 불러오는 중이에요…');
+    return Promise.all(['reviews', 'mission_posts'].map(function(table){
+      return api('/rest/v1/' + table + '?select=*&order=created_at.desc&limit=1000').then(function(data){
+        data.forEach(function(r){ r.table = table; });
+        return data;
+      });
+    })).then(function(results){
+      rows = results[0].concat(results[1]).sort(function(a, b){ return new Date(b.created_at) - new Date(a.created_at); });
+      render(); say('');
+    }).catch(function(e){ fail(e, '게시물을 불러오지 못했어요. supabase_사진_ESG.sql 을 실행했는지 확인해주세요.'); });
   }
 
   function el(tag, cls, text){
@@ -135,19 +148,26 @@
     var f = $('filter').value;
     var hiddenCount = rows.filter(function(r){ return r.hidden; }).length;
     $('count').textContent = '전체 ' + rows.length + '건 · 숨김 ' + hiddenCount + '건';
-    var shown = rows.filter(function(r){ return f === 'all' || (f === 'hidden') === r.hidden; });
+    var k = $('kind').value;
+    var shown = rows.filter(function(r){ return (k === 'all' || r.table === k) && (f === 'all' || (f === 'hidden') === r.hidden); });
     var list = $('list'); list.textContent = '';
-    if(!shown.length){ list.appendChild(el('p', 'msg', '표시할 후기가 없어요.')); return; }
+    if(!shown.length){ list.appendChild(el('p', 'msg', '표시할 게시물이 없어요.')); return; }
     shown.forEach(function(r){
       var item = el('div', 'item' + (r.hidden ? ' off' : ''));
-      item.appendChild(el('div', 'meta', (SPOTS[r.spot_key] || r.spot_key) + ' · ' + new Date(r.created_at).toLocaleString('ko-KR') + (r.hidden ? ' · 숨김' : '')));
-      item.appendChild(el('p', 'note', r.note));
+      var title = r.table === 'reviews' ? '후기 · ' + (SPOTS[r.spot_key] || r.spot_key) : 'ESG 인증 · ' + (MISSIONS[r.mission_id] || r.mission_id);
+      item.appendChild(el('div', 'meta', title + ' · ' + new Date(r.created_at).toLocaleString('ko-KR') + (r.hidden ? ' · 숨김' : '')));
+      if(r.note) item.appendChild(el('p', 'note', r.note));
+      if(r.photo_path){
+        var img = el('img', 'photo'); img.alt = '올린 사진'; img.loading = 'lazy';
+        img.src = SUPABASE_URL + '/storage/v1/object/public/photos/' + encodeURIComponent(r.photo_path);
+        item.appendChild(img);
+      }
       var actions = el('div', 'actions');
       var toggle = el('button', '', r.hidden ? '다시 보이기' : '숨기기'); toggle.type = 'button';
       var del = el('button', 'danger', '삭제'); del.type = 'button';
       toggle.addEventListener('click', function(){ change(r, { hidden:!r.hidden }, toggle); });
       del.addEventListener('click', function(){
-        if(confirm('이 후기를 삭제할까요? 되돌릴 수 없어요.\n\n' + r.note)) change(r, null, del);
+        if(confirm('이 게시물을 삭제할까요? 되돌릴 수 없어요.\n\n' + (r.note || title))) change(r, null, del);
       });
       actions.appendChild(toggle); actions.appendChild(del);
       item.appendChild(actions);
@@ -158,10 +178,16 @@
   // patch 가 null 이면 삭제. RLS 에 막히면 오류 없이 0건이 되므로 돌려받은 행 수를 확인한다.
   function change(row, patch, btn){
     btn.disabled = true;
-    api('/rest/v1/reviews?id=eq.' + row.id, {
-      method:patch ? 'PATCH' : 'DELETE',
-      headers:{ Prefer:'return=representation' },
-      body:patch ? JSON.stringify(patch) : undefined
+    // 삭제할 때는 사진 파일을 먼저 지우고, 성공하면 기록을 지운다.
+    var first = !patch && row.photo_path
+      ? api('/storage/v1/object/photos', { method:'DELETE', body:JSON.stringify({ prefixes:[row.photo_path] }) })
+      : Promise.resolve();
+    first.then(function(){
+      return api('/rest/v1/' + row.table + '?id=eq.' + row.id, {
+        method:patch ? 'PATCH' : 'DELETE',
+        headers:{ Prefer:'return=representation' },
+        body:patch ? JSON.stringify(patch) : undefined
+      });
     }).then(function(changed){
       if(!changed || !changed.length){ say('반영되지 않았어요. 새로고침해서 확인해주세요.'); btn.disabled = false; return; }
       if(patch) row.hidden = patch.hidden;
@@ -171,6 +197,7 @@
   }
 
   $('filter').addEventListener('change', render);
+  $('kind').addEventListener('change', render);
   $('reload').addEventListener('click', load);
   $('logout').addEventListener('click', function(){
     api('/auth/v1/logout?scope=local', { method:'POST' }).catch(function(){}).then(function(){ showLogin('로그아웃했어요.'); });
