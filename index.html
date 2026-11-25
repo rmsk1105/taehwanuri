@@ -510,9 +510,14 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
 
 /* ---------- 사진 크게 보기 ---------- */
 .spot-photo, .review-photo, .registry-item img, .mission-gallery img, .thumb-row img{ cursor:zoom-in; }
-.photo-view{ position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; cursor:zoom-out; }
-.photo-view img{ width:94vw; height:86vh; height:86dvh; object-fit:contain; }
-.photo-view button{ position:absolute; top:12px; right:12px; width:44px; height:44px; border:0; border-radius:50%; background:rgba(255,255,255,.92); color:#183328; font-size:1.5rem; line-height:1; cursor:pointer; }
+.photo-view{ position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; cursor:zoom-out; touch-action:pinch-zoom; user-select:none; }
+.photo-view img{ width:94vw; height:82vh; height:82dvh; object-fit:contain; -webkit-user-drag:none; }
+.photo-view button{ position:absolute; width:44px; height:44px; border:0; border-radius:50%; background:rgba(255,255,255,.92); color:#183328; font-size:1.5rem; line-height:1; cursor:pointer; }
+.photo-view .pv-close{ top:12px; right:12px; }
+.photo-view .pv-prev, .photo-view .pv-next{ top:50%; margin-top:-22px; }
+.photo-view .pv-prev{ left:10px; }
+.photo-view .pv-next{ right:10px; }
+.photo-view .pv-count{ position:absolute; left:0; right:0; bottom:16px; text-align:center; color:#fff; font-size:.9rem; }
 
 /* ---------- 모바일 화면 ---------- */
 @media (max-width:760px){
@@ -2002,13 +2007,42 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
   document.querySelector('.tab[data-tab="esg"]').addEventListener('click', refreshMissions);
   refreshMissions();
 
-  // ---------- 사진 크게 보기: 사진을 누르면 전체 화면, 아무 곳이나 누르거나 Esc 로 닫기 ----------
+  // ---------- 사진 크게 보기: 누르면 전체 화면, 여러 장이면 옆으로 넘기기. 배경을 누르거나 Esc 로 닫기 ----------
   var photoView = document.createElement('div');
   photoView.className = 'photo-view'; photoView.hidden = true;
   photoView.setAttribute('role', 'dialog'); photoView.setAttribute('aria-modal', 'true'); photoView.setAttribute('aria-label', '사진 크게 보기');
-  photoView.innerHTML = '<img alt=""><button type="button" aria-label="닫기">×</button>';
+  photoView.innerHTML = '<img alt=""><button type="button" class="pv-prev" aria-label="이전 사진">‹</button><button type="button" class="pv-next" aria-label="다음 사진">›</button><button type="button" class="pv-close" aria-label="닫기">×</button><div class="pv-count" aria-live="polite"></div>';
   document.body.appendChild(photoView);
   var photoViewImg = photoView.querySelector('img'), photoOpener = null;
+  var photoList = [], photoIndex = 0, swipeX = null, swiped = false;
+  function absUrl(u){ return new URL(u, location.href).href; }
+  // 누른 사진과 함께 넘겨 볼 사진 묶음
+  function photoGroup(img){
+    var gallery = img.closest('.mission-gallery');
+    if(gallery){   // ESG: 모든 미션의 인증 사진을 화면 순서대로 (화면에 안 보이는 것 포함)
+      return missions.reduce(function(all, m){
+        return all.concat((missionData[m.id] || []).filter(function(p){ return p.photo_path; }).map(function(p){ return photoUrl(p.photo_path); }));
+      }, []);
+    }
+    if(img.closest('#spotCard')){   // 장소 카드: 장소 사진 + 그 장소의 모든 후기 사진
+      var list = [];
+      var main = document.getElementById('spotPhoto');
+      if(main.getAttribute('src') && main.offsetParent) list.push(main.src);
+      return list.concat(ReviewStore.list(currentSpotKey).map(function(r){ return r.photo; }).filter(Boolean));
+    }
+    if(img.closest('#registryList')){
+      return Array.prototype.map.call(document.querySelectorAll('#registryList img'), function(i){ return i.src; });
+    }
+    return [img.src];
+  }
+  function showPhoto(i){
+    photoIndex = (i + photoList.length) % photoList.length;
+    photoViewImg.src = photoList[photoIndex];
+    var many = photoList.length > 1;
+    photoView.querySelector('.pv-prev').hidden = !many;
+    photoView.querySelector('.pv-next').hidden = !many;
+    photoView.querySelector('.pv-count').textContent = many ? (photoIndex + 1) + ' / ' + photoList.length : '';
+  }
   function closePhoto(){
     if(photoView.hidden) return;
     photoView.hidden = true; photoViewImg.removeAttribute('src'); document.body.style.overflow = '';
@@ -2017,13 +2051,37 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
   document.addEventListener('click', function(e){
     var img = e.target.closest('.spot-photo, .review-photo, .registry-item img, .mission-gallery img, .thumb-row img');
     if(!img || !img.getAttribute('src')) return;
+    var url = absUrl(img.getAttribute('src'));
+    photoList = photoGroup(img).map(absUrl);
+    if(photoList.indexOf(url) === -1) photoList = [url];
     photoOpener = document.activeElement;
-    photoViewImg.src = img.currentSrc || img.src; photoViewImg.alt = img.alt || '사진';
+    photoViewImg.alt = img.alt || '사진';
     photoView.hidden = false; document.body.style.overflow = 'hidden';
-    photoView.querySelector('button').focus({ preventScroll:true });
+    showPhoto(photoList.indexOf(url));
+    photoView.querySelector('.pv-close').focus({ preventScroll:true });
   });
-  photoView.addEventListener('click', closePhoto);
-  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closePhoto(); });
+  photoView.addEventListener('click', function(e){
+    if(swiped){ swiped = false; return; }
+    if(e.target.closest('.pv-prev')) showPhoto(photoIndex - 1);
+    else if(e.target.closest('.pv-next')) showPhoto(photoIndex + 1);
+    else closePhoto();
+  });
+  // 손가락(또는 마우스)으로 옆으로 밀어 넘기기
+  photoView.addEventListener('pointerdown', function(e){ swiped = false; swipeX = e.isPrimary ? e.clientX : null; });
+  photoView.addEventListener('pointerup', function(e){
+    if(swipeX === null) return;
+    var dx = e.clientX - swipeX; swipeX = null;
+    if(Math.abs(dx) < 40 || photoList.length < 2) return;
+    swiped = true;
+    showPhoto(photoIndex + (dx < 0 ? 1 : -1));
+  });
+  photoView.addEventListener('pointercancel', function(){ swipeX = null; });
+  document.addEventListener('keydown', function(e){
+    if(photoView.hidden) return;
+    if(e.key === 'Escape') closePhoto();
+    else if(e.key === 'ArrowLeft' && photoList.length > 1) showPhoto(photoIndex - 1);
+    else if(e.key === 'ArrowRight' && photoList.length > 1) showPhoto(photoIndex + 1);
+  });
 })();
 </script>
 
