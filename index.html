@@ -279,6 +279,15 @@ button{ font-family:inherit; }
 
 .review-photo{ display:block; max-width:100%; max-height:180px; border-radius:10px; margin-top:6px; }
 
+#spotDescEn{ margin-top:10px; color:var(--ink-soft); }
+.mission-form{ display:grid; gap:8px; margin-top:12px; }
+.mission-note{ width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--mist-line); border-radius:10px; font:inherit; font-size:0.9rem; }
+.mission-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.mission-row .hint{ flex:1; min-width:0; overflow-wrap:anywhere; }
+.mission-gallery .mission-post{ width:150px; border:1px solid var(--mist-line); border-radius:12px; overflow:hidden; }
+.mission-gallery .mission-post img{ display:block; width:100%; height:100px; border-radius:0; }
+.mission-post p{ margin:0; padding:8px 10px; font-size:0.8rem; overflow-wrap:anywhere; }
+
 /* ---------- lists / cards ---------- */
 .grid{ display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); }
 .card{
@@ -664,8 +673,10 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
           <button type="button" class="btn review-go" id="reviewGoBtn" hidden>✍️ 이 장소 후기 남기기</button>
           <div class="spot-actions" id="spotActions">
             <a class="official-link" id="officialLink" href="#" target="_blank" rel="noopener noreferrer">↗ 공식 상세페이지</a>
-            <button class="btn" id="speakBtn" aria-pressed="false">🔊 음성으로 듣기</button>
+            <button type="button" class="btn" id="speakBtn" aria-pressed="false">🔊 한국어로 듣기</button>
+            <button type="button" class="btn" id="speakEnBtn" aria-pressed="false" lang="en">🔊 Listen in English</button>
           </div>
+          <p id="spotDescEn" lang="en" hidden></p>
           <div class="source-box" id="spotSource"></div>
         </div>
       </div>
@@ -762,7 +773,7 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
     <div class="section-head">
       <span class="eyebrow">함께해요 ESG 실천</span>
       <h2>작은 실천, 함께 인증해요</h2>
-      <p>미션을 확인하고 인증 사진을 올려보세요. 올린 사진은 모두에게 공개돼요.</p>
+      <p>미션을 확인하고 사진이나 한 줄로 인증해 보세요. 올린 내용은 모두에게 공개돼요.</p>
     </div>
     <div id="missionList"></div>
   </section>
@@ -987,7 +998,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     spotTitle.textContent = s.title;
     spotDesc.textContent = s.desc;
     spotDesc.hidden = !s.desc;
-    spotActions.hidden = !isAttraction;
+    spotActions.hidden = !/^(garden|ecology|view|rest)$/.test(s.type);
     spotMeta.hidden = !(s.activity || s.duration);
     spotActivity.textContent = s.activity || '';
     spotDuration.textContent = s.duration || '';
@@ -1002,7 +1013,10 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
       esgPrev.after(chip);
       esgPrev = chip;
     });
-    officialLink.href = s.officialUrl || GARDEN_LIST_URL;
+    // 장소별 상세페이지 주소가 있으면 그곳으로, 없으면 공식 정원·시설 목록으로 연결
+    var detail = /\/s\/garden\/bbs\/view/.test(s.photoCredit || '') ? s.photoCredit.replace(/&amp;/g, '&') : '';
+    officialLink.href = s.officialUrl || detail || GARDEN_LIST_URL;
+    officialLink.textContent = detail ? '↗ 공식 상세페이지' : '↗ 공식 안내 페이지';
     var showPhoto = !!s.photo || (s.type !== 'parking' && s.type !== 'garden' && s.type !== 'ecology' && s.type !== 'view' && s.type !== 'rest' && s.type !== 'restroom');
     spotPhotoWrap.style.display = showPhoto ? '' : 'none';
     spotPhotoWrap.parentNode.style.gridTemplateColumns = showPhoto ? '' : '1fr';
@@ -1036,36 +1050,99 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     }
     setupReviews(key);
     spotCard.classList.add('open');
-    speakBtn.setAttribute('aria-pressed','false');
-    speakBtn.textContent = '🔊 음성으로 듣기';
-    if(window.speechSynthesis){ window.speechSynthesis.cancel(); }
+    currentSpotKey = key;
+    stopSpeak();
   }
 
   pins.forEach(function(pin){
     pin.addEventListener('click', function(){ openSpot(pin.dataset.spot, pin); nudgePin(pin); });
   });
 
-  speakBtn.addEventListener('click', function(){
-    if(!('speechSynthesis' in window)){
-      speakBtn.textContent = '이 브라우저는 음성 재생을 지원하지 않아요';
-      return;
-    }
-    if(window.speechSynthesis.speaking){
-      window.speechSynthesis.cancel();
-      speakBtn.setAttribute('aria-pressed','false');
-      speakBtn.textContent = '🔊 음성으로 듣기';
-      return;
-    }
-    var u = new SpeechSynthesisUtterance(spotTitle.textContent + '. ' + spotDesc.textContent);
-    u.lang = 'ko-KR';
-    u.onend = function(){
-      speakBtn.setAttribute('aria-pressed','false');
-      speakBtn.textContent = '🔊 음성으로 듣기';
-    };
-    speakBtn.setAttribute('aria-pressed','true');
-    speakBtn.textContent = '⏸ 재생 중 (누르면 정지)';
-    window.speechSynthesis.speak(u);
-  });
+  // ---------- 음성 안내 (한국어·영어, 브라우저 음성 합성) ----------
+  // 영어 문구는 위 한국어 설명을 번역한 것. 설명이 없는 장소는 이름만 읽는다.
+  var SPOT_EN = {
+    g1:['Purple Garden', 'A forest garden where the purple of lilyturf and the green of pine trees create a mysterious contrast.'],
+    g2:['Rainbow Garden (Osan Pond)', 'A water garden where a small stream flowing through the National Garden creates rainbows in the daytime.'],
+    g3:['Chrysanthemum Garden', 'A sunset-colored garden where the scent of chrysanthemums in full bloom draws visitors in autumn.'],
+    g4:['Wildflower Garden', 'A garden showing the colorful wildflowers that grow along the Taehwa River, season by season.'],
+    g5:['Naturalistic Garden', "Asia's first naturalistic garden by the world-renowned garden designer Piet Oudolf."],
+    g6:["Monet's Garden (Aquatic Plant House)", 'A garden inspired by the bridge in the garden that the French Impressionist painter Monet cared for in Giverny.'],
+    g7:["Artists' Garden", 'Created during the 2018 Taehwa River Garden Expo, where invited artists from Korea and abroad expressed their impressions as works. It includes gardens made by citizens and students.'],
+    g8:['U-5 Garden', "A participatory garden showing the local character of Ulsan's five districts and county, following the designation of the Taehwa River National Garden in July 2019."],
+    g9:['Fragrance Garden', 'A multi-sensory garden where fragrance adds a new color. Many kinds of aromatic plants grow here.'],
+    g10:['Peony Garden', 'A garden where you can enjoy spring surrounded by beautiful peonies.'],
+    g11:['Mugunghwa Garden', 'A themed garden expressing the Korean spirit through the strong vitality of the mugunghwa, the national flower.'],
+    e1:['Ginkgo Garden', 'Large ginkgo trees, 40 to 50 years old, offer green shade in summer and golden leaves in autumn.'],
+    e2:['Migratory Bird Exhibition Hall', ''],
+    e3:['Bird Ecological Park', 'A home for migratory birds. About 8,000 egrets nest here in summer, and about 100,000 rooks arrive to spend the winter.'],
+    e4:['Forest Garden', 'A zelkova forest garden that unfolds beyond the bamboo grove, offering a different kind of calm and comfort.'],
+    e5:['Milky Way Path', 'A unique night garden. Colorful lights among the bamboo make you feel as if you are walking along the Milky Way.'],
+    e6:['Bamboo Ecological Garden', 'Home to 63 kinds of bamboo from Korea, China and Japan. A place to learn about the ecology and features of bamboo.'],
+    e7:['Bamboo Theme Garden', 'A garden offering citizens a variety of bamboo-themed experiences and education, using bamboo from Korea and abroad.'],
+    e8:['Butterfly Ecological Garden', 'Completed while restoring the endangered dragon swallowtail butterfly. The area connects the ecological garden, the butterfly garden and the butterfly yard.'],
+    e9:['Simnidaesup Bamboo Grove', 'A bamboo forest stretching about four kilometers along the Taehwa River, a natural garden of long-established native bamboo.'],
+    v1:['Eunhasu Bridge', 'A footbridge under the National Garden Bridge, opened in June 2020. It links the Taehwa and Samho areas at the heart of the National Garden.'],
+    v2:['Manhoejeong Pavilion', 'A pavilion built on the foot of Osan hill by Park Chwi-mun (1617 to 1690), a magistrate of the mid-Joseon period, as a place to rest and meet friends in his later years.'],
+    v3:['Taehwa River Observatory', 'A water intake tower built in 1963 and remodeled to enjoy views of nature. From the outdoor deck you can look down on the Taehwa River and the bamboo grove.'],
+    v4:['Taehwa River Cave-pia', 'A unique attraction in a former tunnel, popular for its cool interior and various exhibits.'],
+    v5:['Simnidaebat Bridge', 'A pedestrian bridge safely connecting Jung-gu and Nam-gu within the National Garden. It was built through a joint project of Ulsan City and Kyongnam Bank.'],
+    v6:['Taehwaru Pavilion and Skywalk', 'A scenic pavilion in the middle of the Taehwa River, overlooking the National Garden and the bamboo grove. It was first built in 643, when the monk Jajang founded Taehwa Temple, and was restored in April 2014. The Taehwaru Skywalk offers a view of the riverside, with a fountain, night lighting, media facade, and swing and net activities.'],
+    r1:['Migratory Bird Plaza', ''],
+    r2:['Lawn Garden', ''],
+    r3:['Osan Plaza', ''],
+    r4:['Barrier-free Electric Tour Car and Information Center', ''],
+    r5:["Children's Playground", ''],
+    r6:['Meeting Plaza', ''],
+    r7:['King Willow Yard', ''],
+    r8:['Picnic Yard', ''],
+    r9:['Outdoor Stage', '']
+  };
+  var currentSpotKey = null;
+  var speakingLang = null;
+  var speakRun = 0;   // 멈춘 뒤에 늦게 오는 이벤트를 무시하기 위한 번호
+  var speakEnBtn = document.getElementById('speakEnBtn');
+  var spotDescEn = document.getElementById('spotDescEn');
+  var SPEAK = { ko:{ btn:speakBtn, lang:'ko-KR', label:'🔊 한국어로 듣기', playing:'⏸ 재생 중 (누르면 정지)' },
+                en:{ btn:speakEnBtn, lang:'en-US', label:'🔊 Listen in English', playing:'⏸ Playing (tap to stop)' } };
+  function resetSpeakButtons(){
+    speakingLang = null;
+    Object.keys(SPEAK).forEach(function(k){ SPEAK[k].btn.setAttribute('aria-pressed','false'); SPEAK[k].btn.textContent = SPEAK[k].label; });
+  }
+  function stopSpeak(){
+    speakRun++;
+    if(window.speechSynthesis){ window.speechSynthesis.cancel(); }
+    resetSpeakButtons();
+    spotDescEn.hidden = true;
+  }
+  function speak(code){
+    var conf = SPEAK[code];
+    if(!('speechSynthesis' in window)){ conf.btn.textContent = '이 브라우저는 음성 재생을 지원하지 않아요'; return; }
+    if(speakingLang === code){ stopSpeak(); return; }
+    stopSpeak();
+    var s = spots[currentSpotKey];
+    if(!s) return;
+    var en = SPOT_EN[currentSpotKey] || ['', ''];
+    var text = code === 'en' ? en[0] + '. ' + en[1] : s.title + '. ' + (s.desc || '');
+    if(code === 'en'){ spotDescEn.textContent = en[0] + (en[1] ? ' — ' + en[1] : ''); spotDescEn.hidden = false; }
+    // 긴 글은 중간에 끊기는 브라우저가 있어 문장 단위로 나눠 읽는다
+    var parts = text.split(/(?<=[.!?])\s+|\n+/).filter(function(t){ return t.replace(/[.\s]/g, ''); });
+    var voices = window.speechSynthesis.getVoices();
+    var voice = voices.filter(function(v){ return v.lang.replace('_','-').indexOf(conf.lang) === 0; })[0];
+    var run = speakRun;
+    speakingLang = code;
+    conf.btn.setAttribute('aria-pressed','true');
+    conf.btn.textContent = conf.playing;
+    parts.forEach(function(part, i){
+      var u = new SpeechSynthesisUtterance(part);
+      u.lang = conf.lang;
+      if(voice) u.voice = voice;
+      if(i === parts.length - 1){ u.onend = function(){ if(run === speakRun) resetSpeakButtons(); }; }
+      window.speechSynthesis.speak(u);
+    });
+  }
+  speakBtn.addEventListener('click', function(){ speak('ko'); });
+  speakEnBtn.addEventListener('click', function(){ speak('en'); });
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(t){ t.addEventListener('click', stopSpeak); });
 
   // open first spot by default so the page isn't empty at rest
   var firstAttraction = document.querySelector('.pin[data-category="attraction"]');
@@ -1718,97 +1795,98 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
   });
 
 
-  // ---------- ESG missions (localStorage demo) ----------
+  // ---------- ESG missions (Supabase) ----------
+  // needNote: true 면 한 줄 필수·사진 선택, 아니면 사진 필수·한 줄 선택 (DB 정책과 같은 규칙)
   var missions = [
-    { id:'trash', icon:'♻️', tag:'인증', title:'E · 발견한 쓰레기 분리배출하기', desc:'산책·러닝 중 발견한 쓰레기를 정해진 장소에 분리배출하고 인증합니다.' },
-    { id:'transit', icon:'🚶', tag:'기록', title:'E · 저탄소 이동으로 코스 방문하기', desc:'도보·러닝·대중교통을 이용해 방문한 경험을 기록합니다.' },
-    { id:'local', icon:'🏪', tag:'공유', title:'S · 지역 공간 한 곳 이용하기', desc:'지역 소상공인·문화공간 이용 후 한 줄 후기를 남깁니다.' },
-    { id:'report', icon:'📍', tag:'제보', title:'G · 정보·안전 불편사항 제보하기', desc:'잘못된 장소 정보 또는 접근성·안전 불편을 알려 개선에 참여합니다.' }
+    { id:'trash', icon:'♻️', tag:'인증', needNote:false, title:'E · 발견한 쓰레기 분리배출하기', desc:'산책·러닝 중 발견한 쓰레기를 정해진 장소에 분리배출하고 인증합니다.', hint:'예: 산책길에서 주운 페트병을 분리배출했어요' },
+    { id:'transit', icon:'🚶', tag:'기록', needNote:false, title:'E · 저탄소 이동으로 코스 방문하기', desc:'도보·러닝·대중교통을 이용해 방문한 경험을 기록합니다.', hint:'예: 버스를 타고 와서 걸어서 둘러봤어요' },
+    { id:'local', icon:'🏪', tag:'공유', needNote:true, title:'S · 지역 공간 한 곳 이용하기', desc:'지역 소상공인·문화공간 이용 후 한 줄 후기를 남깁니다.', hint:'예: 근처 카페에서 쉬었는데 친절했어요' },
+    { id:'report', icon:'📍', tag:'제보', needNote:true, title:'G · 정보·안전 불편사항 제보하기', desc:'잘못된 장소 정보 또는 접근성·안전 불편을 알려 개선에 참여합니다.', hint:'예: 십리대숲 입구 안내판이 잘 안 보여요' }
   ];
-  var MISSION_KEY = 'taehwanuri_missions_demo';
-
-  function loadMissionPhotos(){
-    try{ return JSON.parse(localStorage.getItem(MISSION_KEY) || '{}'); }
-    catch(e){ return {}; }
-  }
-  function saveMissionPhotos(data){
-    try{ localStorage.setItem(MISSION_KEY, JSON.stringify(data)); }catch(e){}
-  }
-
-  var missionData = USE_SERVER ? {} : loadMissionPhotos();
+  var missionData = {};
   var missionListEl = document.getElementById('missionList');
   missionListEl.innerHTML = missions.map(function(m){
     return '<div class="mission" id="mission-'+m.id+'">' +
-      '<div class="mission-head"><div class="mission-title"><span class="mission-icon">'+m.icon+'</span><strong>'+m.title+'</strong><span class="tag">'+m.tag+'</span></div>' +
-      '<label class="btn" for="upload-'+m.id+'">인증사진 올리기</label></div>' +
+      '<div class="mission-head"><div class="mission-title"><span class="mission-icon">'+m.icon+'</span><strong>'+m.title+'</strong><span class="tag">'+m.tag+'</span></div></div>' +
       '<p class="desc">'+m.desc+'</p>' +
-      '<input type="file" id="upload-'+m.id+'" accept="image/jpeg,image/png" style="display:none">' +
+      '<form class="mission-form" id="form-'+m.id+'">' +
+        '<input type="text" class="mission-note" maxlength="300" aria-label="한 줄 남기기" placeholder="'+(m.needNote ? '(필수) ' : '(선택) ')+m.hint+'">' +
+        '<div class="mission-row">' +
+          '<label class="btn" for="upload-'+m.id+'">사진 선택'+(m.needNote ? ' (선택)' : ' (필수)')+'</label>' +
+          '<input type="file" id="upload-'+m.id+'" accept="image/jpeg,image/png" style="display:none">' +
+          '<span class="hint" id="file-'+m.id+'"></span>' +
+          '<button type="submit" class="btn solid">인증하기</button>' +
+        '</div>' +
+        '<p class="hint" id="status-'+m.id+'" role="status"></p>' +
+      '</form>' +
       '<div class="mission-gallery" id="gallery-'+m.id+'"></div>' +
       '<div class="mission-count" id="count-'+m.id+'"></div>' +
       '</div>';
   }).join('') + '<p class="note">성과 확인 예시: 미션 참여 건수 · 저탄소 이동 기록 수 · 지역상생 후기 수 · 정보 오류·안전 제보 수</p>';
 
-  missions.forEach(function(m){
-    var input = document.getElementById('upload-'+m.id);
-    input.addEventListener('change', function(e){
-      var file = e.target.files[0];
-      if(!file) return;
-      e.target.value = '';
-      var invalid = checkPhoto(file);
-      if(invalid){ alert(invalid); return; }
-      if(USE_SERVER){ postMission(m.id, file, input); return; }
-      var url = URL.createObjectURL(file);
-      if(!missionData[m.id]) missionData[m.id] = [];
-      missionData[m.id].push(url);
-      saveMissionPhotos(missionData);
-      renderMissionGallery(m.id);
-    });
-    renderMissionGallery(m.id);
-  });
-  if(USE_SERVER) refreshMissions();
-
-  function renderMissionGallery(id){
-    var photos = missionData[id] || [];
-    document.getElementById('gallery-'+id).innerHTML = photos.map(function(url){
-      return '<img src="'+escapeHtml(url)+'" alt="인증 사진" loading="lazy">';
+  function renderMission(id){
+    var posts = missionData[id] || [];
+    document.getElementById('gallery-'+id).innerHTML = posts.slice(0, 8).map(function(p){
+      return '<div class="mission-post">' +
+        (p.photo_path ? '<img src="'+escapeHtml(photoUrl(p.photo_path))+'" alt="인증 사진" loading="lazy">' : '') +
+        (p.note ? '<p>'+escapeHtml(p.note)+'</p>' : '') + '</div>';
     }).join('');
-    document.getElementById('count-'+id).textContent = USE_SERVER
-      ? '인증 ' + photos.length + '건'
-      : photos.length + '명이 인증했어요 (이 브라우저 기준 데모)';
+    document.getElementById('count-'+id).textContent = '인증 ' + posts.length + '건' + (posts.length > 8 ? ' (최근 8건 표시)' : '');
   }
   function refreshMissions(){
-    return sbFetch('mission_posts?select=mission_id,photo_path&hidden=eq.false&order=created_at.desc&limit=500')
+    return sbFetch('mission_posts?select=mission_id,note,photo_path&hidden=eq.false&order=created_at.desc&limit=500')
       .then(function(res){ return res.json(); })
       .then(function(rows){
         missionData = {};
-        rows.forEach(function(r){ (missionData[r.mission_id] = missionData[r.mission_id] || []).push(photoUrl(r.photo_path)); });
-        missions.forEach(function(m){ renderMissionGallery(m.id); });
+        rows.forEach(function(r){ (missionData[r.mission_id] = missionData[r.mission_id] || []).push(r); });
+        missions.forEach(function(m){ renderMission(m.id); });
       })
       .catch(function(e){
-        console.error('인증 사진 불러오기 실패', e);
-        missions.forEach(function(m){ document.getElementById('count-'+m.id).textContent = '인증 사진을 불러오지 못했어요.'; });
+        console.error('인증 목록 불러오기 실패', e);
+        missions.forEach(function(m){ document.getElementById('count-'+m.id).textContent = '인증 목록을 불러오지 못했어요.'; });
       });
   }
-  function postMission(id, file, input){
-    if(!confirm('이 사진은 모두에게 공개돼요.\n타인의 얼굴·차량번호판 등 개인정보가 없는 사진인가요?')) return;
-    var countEl = document.getElementById('count-'+id);
-    input.disabled = true;
-    countEl.textContent = '올리는 중이에요…';
-    uploadPhoto(file).then(function(photoPath){
-      return sbFetch('mission_posts', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', Prefer:'return=minimal' },
-        body:JSON.stringify({ mission_id:id, photo_path:photoPath })
-      });
-    }).then(refreshMissions).catch(function(e){
-      console.error('인증 등록 실패', e);
-      renderMissionGallery(id);
-      alert('사진을 올리지 못했어요. 잠시 후 다시 시도해주세요.');
-    }).then(function(){ input.disabled = false; });
-  }
-  if(USE_SERVER){
-    document.querySelector('.tab[data-tab="esg"]').addEventListener('click', refreshMissions);
-  }
+  missions.forEach(function(m){
+    var form = document.getElementById('form-'+m.id);
+    var noteEl = form.querySelector('.mission-note');
+    var input = document.getElementById('upload-'+m.id);
+    var fileEl = document.getElementById('file-'+m.id);
+    var statusEl = document.getElementById('status-'+m.id);
+    var button = form.querySelector('button[type="submit"]');
+    input.addEventListener('change', function(){
+      var file = input.files[0];
+      var invalid = file ? checkPhoto(file) : '';
+      if(invalid){ input.value = ''; }
+      fileEl.textContent = file && !invalid ? file.name : '';
+      statusEl.textContent = invalid;
+    });
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var note = noteEl.value.trim();
+      var file = input.files[0];
+      if(m.needNote && !note){ statusEl.textContent = '한 줄을 적어주세요.'; return; }
+      if(!m.needNote && !file){ statusEl.textContent = '인증 사진을 선택해주세요.'; return; }
+      if(!confirm('올린 글과 사진은 모두에게 공개돼요.\n타인의 얼굴·차량번호판·연락처 등 개인정보가 없나요?')) return;
+      button.disabled = true;
+      statusEl.textContent = '올리는 중이에요…';
+      (file ? uploadPhoto(file) : Promise.resolve(null)).then(function(photoPath){
+        return sbFetch('mission_posts', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', Prefer:'return=minimal' },
+          body:JSON.stringify({ mission_id:m.id, note:note || null, photo_path:photoPath })
+        });
+      }).then(function(){
+        form.reset(); fileEl.textContent = '';
+        statusEl.textContent = '등록됐어요. 광고로 보이는 글은 관리자 확인 후 보여요.';
+        return refreshMissions();
+      }).catch(function(err){
+        console.error('인증 등록 실패', err);
+        statusEl.textContent = '등록하지 못했어요. 잠시 후 다시 시도해주세요.';
+      }).then(function(){ button.disabled = false; });
+    });
+  });
+  document.querySelector('.tab[data-tab="esg"]').addEventListener('click', refreshMissions);
+  refreshMissions();
 })();
 </script>
 
