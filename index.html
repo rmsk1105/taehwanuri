@@ -509,10 +509,11 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
 }
 
 /* ---------- 사진 크게 보기 ---------- */
-.spot-photo, .review-photo, .registry-item img, .mission-gallery img, .thumb-row img{ cursor:zoom-in; }
+.spot-photo, .review-photo, .mission-gallery img{ cursor:zoom-in; }
 .photo-view{ position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; cursor:zoom-out; touch-action:pinch-zoom; user-select:none; }
 .photo-view img{ width:94vw; height:82vh; height:82dvh; object-fit:contain; -webkit-user-drag:none; }
-.photo-view button{ position:absolute; width:44px; height:44px; border:0; border-radius:50%; background:rgba(255,255,255,.92); color:#183328; font-size:1.5rem; line-height:1; cursor:pointer; }
+.photo-view button{ position:absolute; display:flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0; border:0; border-radius:50%; background:rgba(255,255,255,.92); color:#183328; cursor:pointer; }
+.photo-view button svg{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
 .photo-view .pv-close{ top:12px; right:12px; }
 .photo-view .pv-prev, .photo-view .pv-next{ top:50%; margin-top:-22px; }
 .photo-view .pv-prev{ left:10px; }
@@ -2011,29 +2012,22 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
   var photoView = document.createElement('div');
   photoView.className = 'photo-view'; photoView.hidden = true;
   photoView.setAttribute('role', 'dialog'); photoView.setAttribute('aria-modal', 'true'); photoView.setAttribute('aria-label', '사진 크게 보기');
-  photoView.innerHTML = '<img alt=""><button type="button" class="pv-prev" aria-label="이전 사진">‹</button><button type="button" class="pv-next" aria-label="다음 사진">›</button><button type="button" class="pv-close" aria-label="닫기">×</button><div class="pv-count" aria-live="polite"></div>';
+  function icon(d){ return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '"/></svg>'; }
+  photoView.innerHTML = '<img alt="">' +
+    '<button type="button" class="pv-prev" aria-label="이전 사진">' + icon('M15 5l-7 7 7 7') + '</button>' +
+    '<button type="button" class="pv-next" aria-label="다음 사진">' + icon('M9 5l7 7-7 7') + '</button>' +
+    '<button type="button" class="pv-close" aria-label="닫기">' + icon('M6 6l12 12M18 6L6 18') + '</button>' +
+    '<div class="pv-count" aria-live="polite"></div>';
   document.body.appendChild(photoView);
   var photoViewImg = photoView.querySelector('img'), photoOpener = null;
   var photoList = [], photoIndex = 0, swipeX = null, swiped = false;
   function absUrl(u){ return new URL(u, location.href).href; }
-  // 누른 사진과 함께 넘겨 볼 사진 묶음
+  // 누른 사진과 함께 넘겨 볼 사진 묶음: 화면에 보이는 것만
   function photoGroup(img){
-    var gallery = img.closest('.mission-gallery');
-    if(gallery){   // ESG: 모든 미션의 인증 사진을 화면 순서대로 (화면에 안 보이는 것 포함)
-      return missions.reduce(function(all, m){
-        return all.concat((missionData[m.id] || []).filter(function(p){ return p.photo_path; }).map(function(p){ return photoUrl(p.photo_path); }));
-      }, []);
-    }
-    if(img.closest('#spotCard')){   // 장소 카드: 장소 사진 + 그 장소의 모든 후기 사진
-      var list = [];
-      var main = document.getElementById('spotPhoto');
-      if(main.getAttribute('src') && main.offsetParent) list.push(main.src);
-      return list.concat(ReviewStore.list(currentSpotKey).map(function(r){ return r.photo; }).filter(Boolean));
-    }
-    if(img.closest('#registryList')){
-      return Array.prototype.map.call(document.querySelectorAll('#registryList img'), function(i){ return i.src; });
-    }
-    return [img.src];
+    var box = img.closest('.mission-gallery') ||                          // ESG: 같은 항목 안에서만
+              (img.classList.contains('review-photo') && reviewBodyEl);   // 후기: 지금 나타난 후기의 사진만
+    if(!box) return [img.src];                                            // 장소 사진은 한 장만
+    return Array.prototype.map.call(box.querySelectorAll('img'), function(i){ return i.src; });
   }
   function showPhoto(i){
     photoIndex = (i + photoList.length) % photoList.length;
@@ -2049,7 +2043,7 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     if(photoOpener && photoOpener.focus) photoOpener.focus({ preventScroll:true });
   }
   document.addEventListener('click', function(e){
-    var img = e.target.closest('.spot-photo, .review-photo, .registry-item img, .mission-gallery img, .thumb-row img');
+    var img = e.target.closest('.spot-photo, .review-photo, .mission-gallery img');
     if(!img || !img.getAttribute('src')) return;
     var url = absUrl(img.getAttribute('src'));
     photoList = photoGroup(img).map(absUrl);
