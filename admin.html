@@ -28,11 +28,13 @@
   .meta{ font-size:.78rem; color:#6b7c73; }
   .note{ margin:8px 0 12px; white-space:pre-wrap; overflow-wrap:anywhere; }
   .actions{ display:flex; gap:8px; }
+  .home{ display:inline-block; border:1px solid #16785f; background:#fff; color:#16785f; border-radius:999px; padding:7px 16px; font-size:.85rem; font-weight:700; text-decoration:none; }
   .photo{ display:block; max-width:100%; max-height:220px; border-radius:10px; margin:8px 0 12px; }
 </style>
 </head>
 <body>
 <main>
+  <a class="home" id="homeLink" href="./">← 홈페이지로</a>
   <h1>태화누리 게시물 관리</h1>
 
   <form class="box" id="loginForm">
@@ -70,6 +72,8 @@
   var SUPABASE_KEY = 'sb_publishable_wA0vXtcVSK7PnRDQNQFaYQ_NJtS3CXF';
   var SPOTS = {"g1":"보라정원","g2":"무지개정원(오산못)","g3":"국화정원","g4":"초화원","g5":"자연주의정원","g6":"모네의 정원(수생식물관)","g7":"작가정원","g8":"U-5가든","g9":"향기정원","g10":"작약원","g11":"무궁화정원","e1":"은행나무정원","e2":"철새홍보관","e3":"조류생태원","e4":"숲속정원","e5":"은하수길","e6":"대나무생태원","e7":"대나무 테마정원","e8":"나비생태원","e9":"십리대숲","v1":"은하수다리","v2":"만회정","v3":"태화강 전망대","v4":"태화강 동굴피아","v5":"십리대밭교","v6":"태화루 · 태화루 스카이워크","r1":"철새광장","r2":"잔디원","r3":"오산광장","r4":"무장애 전기관람차 · 안내센터","r5":"어린이놀이터","r6":"만남의 광장","r7":"왕버들마당","r8":"소풍마당","r9":"야외공연장"};
 
+  // PC에서 파일로 열면 로컬 홈페이지 파일, 웹에서는 사이트 첫 화면
+  if(location.protocol === 'file:') document.getElementById('homeLink').setAttribute('href', '태화누리_목업사이트_8차.html');
   var MISSIONS = { trash:'쓰레기 분리배출', transit:'저탄소 이동', local:'지역 공간 이용', report:'정보·안전 제보' };
   var token = null;   // 메모리에만 보관: 새로고침하면 다시 로그인
   var userId = null;
