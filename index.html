@@ -541,9 +541,9 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
   .map-viewport{ order:1; flex:none !important; width:100%; box-sizing:border-box; aspect-ratio:auto; height:56vh; height:56svh; min-height:340px; scroll-margin-top:112px; }
   .spot-card{ order:2; }
   .spot-list{ order:3; flex:none; height:240px; margin-top:12px; }
-  .map-legend{ left:0; right:0; top:0; bottom:auto; max-width:none; flex-wrap:nowrap; gap:6px; padding:8px; overflow-x:auto; touch-action:pan-x; scrollbar-width:none; }
-  .map-legend::-webkit-scrollbar{ display:none; }
-  .legend-chip{ flex:none; padding:7px 11px; box-shadow:0 2px 6px rgba(0,0,0,.12); }
+  /* 유형 버튼은 지도를 가리지 않게 지도 위쪽 바깥에 두 줄로 */
+  .map-legend{ order:1; position:static; max-width:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:8px; }
+  .legend-chip{ padding:8px 2px; background:#fff; white-space:nowrap; }
   .zoom-controls{ right:10px; bottom:10px; }
   .spot-content{ padding:16px; }
   .spot-search{ font-size:16px; }
@@ -1325,6 +1325,16 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     setTimeout(function(){ world.style.transition = ''; }, 350);
   }
   if(mapImg.complete){ fitToScreen(); } else { mapImg.addEventListener('load', fitToScreen); }
+  // 모바일에서는 유형 버튼을 지도 밖(위)으로, PC에서는 지도 안으로
+  var legendEl = document.getElementById('mapLegend');
+  var mobileQuery = window.matchMedia('(max-width:760px)');
+  function placeLegend(){
+    if(mobileQuery.matches) viewport.parentNode.insertBefore(legendEl, viewport);
+    else viewport.appendChild(legendEl);
+  }
+  mobileQuery.addEventListener('change', placeLegend);
+  placeLegend();
+
   var fittedSize = '';
   function refitIfChanged(){
     var size = viewport.clientWidth + 'x' + viewport.clientHeight;
