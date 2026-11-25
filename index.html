@@ -506,6 +506,60 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
   .project-hero-inner{grid-template-columns:1fr}.project-hero h1{font-size:1.55rem}.esg-ribbon{grid-template-columns:1fr 1fr 1fr}.spot-layout{grid-template-columns:1fr}.spot-photo-wrap{height:auto;min-height:0}.spot-photo-wrap .spot-photo{aspect-ratio:16/9}.course-map-shell{height:210px}.map-guide{align-items:flex-start;flex-direction:column}
 }
 
+/* ---------- 모바일 화면 ---------- */
+@media (max-width:760px){
+  body{ word-break:keep-all; overflow-wrap:anywhere; }
+  .shell{ padding:0 14px 48px; }
+  /* 상단: 메뉴를 옆으로 미는 한 줄로 */
+  .topbar-inner{ padding:10px 14px 8px; gap:6px; }
+  .brand-mark{ font-size:1.3rem; }
+  .tabs{ width:100%; margin-left:0; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tab{ flex:none; padding:7px 12px; font-size:.86rem; }
+  /* 소개 카드: 전체보기에서만, 작게 */
+  body.on-sub-tab .project-hero{ display:none; }
+  .project-hero{ margin:12px 0 0; border-radius:18px; }
+  .project-hero-inner{ padding:14px 16px; gap:10px; grid-template-columns:1fr; }
+  .project-hero .kicker{ font-size:.62rem; }
+  .project-hero h1{ font-size:1.15rem; margin:4px 0; }
+  .project-hero p{ font-size:.82rem; line-height:1.5; }
+  .project-hero p br, .esg-pill br, .section-head p br{ display:none; }
+  .esg-ribbon{ grid-template-columns:1fr; gap:5px; }
+  .esg-pill{ display:flex; align-items:center; gap:10px; padding:7px 11px; border-radius:10px; }
+  .esg-pill b{ flex:none; width:104px; margin:0; font-size:.72rem; }
+  .esg-pill span{ font-size:.72rem; }
+  .section-head{ margin:20px 0 12px; }
+  .section-head h2{ font-size:1.35rem; }
+  .section-head p{ font-size:.86rem; }
+  #tab-map .section-head{ margin:14px 0 8px; }
+  #tab-map .section-head .eyebrow, #tab-map .section-head p{ display:none; }
+  /* 지도: 먼저, 크게. 그 아래 장소 설명, 장소 목록 순서 */
+  #tab-map{ display:flex; flex-direction:column; }
+  .map-guide{ display:none; }
+  .map-stage{ display:contents; }
+  .section-head{ order:0; }
+  .map-viewport{ order:1; flex:none !important; width:100%; box-sizing:border-box; aspect-ratio:auto; height:56vh; height:56svh; min-height:340px; scroll-margin-top:112px; }
+  .spot-card{ order:2; }
+  .spot-list{ order:3; flex:none; height:240px; margin-top:12px; }
+  .map-legend{ left:0; right:0; top:0; bottom:auto; max-width:none; flex-wrap:nowrap; gap:6px; padding:8px; overflow-x:auto; touch-action:pan-x; scrollbar-width:none; }
+  .map-legend::-webkit-scrollbar{ display:none; }
+  .legend-chip{ flex:none; padding:7px 11px; box-shadow:0 2px 6px rgba(0,0,0,.12); }
+  .zoom-controls{ right:10px; bottom:10px; }
+  .spot-content{ padding:16px; }
+  .spot-search{ font-size:16px; }
+  .spot-list button{ padding:9px 8px; font-size:.86rem; }
+  /* 입력칸: 글자가 작으면 아이폰에서 화면이 확대됨 */
+  input, select, textarea, .mission-note{ font-size:16px !important; }
+  .quiz-box{ padding:20px 16px; }
+  .result-list .result-rec{ flex-wrap:wrap; }
+  .result-list .result-rec .btn{ margin-left:auto; }
+  .mission{ padding-left:14px; padding-right:14px; }
+  .mission-title{ flex:1; min-width:0; }
+  .mission .tag{ flex:none; white-space:nowrap; }
+  .mission-gallery .mission-post{ width:calc(50% - 4px); }
+  .mission-gallery .mission-post img{ width:100%; height:110px; }
+}
+
 [hidden]{ display:none !important; }
 </style>
 </head>
@@ -535,10 +589,10 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
       <div>
         <span class="kicker">AI × ESG × Sustainable Travel</span>
         <h1 class="display">태화누리, 걷고 뛰며 발견하는 지속가능한 울산</h1>
-        <p>태화강 국가정원의 명소와 이용 정보를 한눈에 보고,<br>걷기·러닝 코스로 울산을 직접 경험해 보세요.</p>
+        <p>태화강 국가정원의 명소와 이용 정보를 한눈에 보고, <br>걷기·러닝 코스로 울산을 직접 경험해 보세요.</p>
       </div>
       <div class="esg-ribbon">
-        <div class="esg-pill e"><b>E · Environment</b><span>정원·수변 생태와<br>저탄소 이동</span></div>
+        <div class="esg-pill e"><b>E · Environment</b><span>정원·수변 생태와 <br>저탄소 이동</span></div>
         <div class="esg-pill s"><b>S · Social</b><span>건강한 여가·접근 쉬운 관광정보</span></div>
         <div class="esg-pill g"><b>G · Governance</b><span>공식자료·출처·이용자 피드백</span></div>
       </div>
@@ -550,7 +604,7 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
     <div class="section-head">
       <span class="eyebrow">전체보기</span>
       <h2>지도에서 코스를 살펴보세요</h2>
-      <p>핀을 누르면 해당 장소 설명이 뜨고, 필요하면 음성으로도 들을 수 있어요.<br>지도는 드래그로 움직이고 확대·축소도 가능해요.</p>
+      <p>핀을 누르면 해당 장소 설명이 뜨고, 필요하면 음성으로도 들을 수 있어요. <br>지도는 드래그로 움직이고 확대·축소도 가능해요.</p>
     </div>
 
     <div class="map-guide">
@@ -800,6 +854,9 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
     btn.addEventListener('click', function(){
       tabs.forEach(function(b){ b.removeAttribute('aria-current'); });
       btn.setAttribute('aria-current','page');
+      document.body.classList.toggle('on-sub-tab', btn.dataset.tab !== 'map');
+      var nav = btn.parentNode;
+      nav.scrollLeft = btn.offsetLeft - nav.offsetLeft - (nav.clientWidth - btn.offsetWidth) / 2;
       Object.keys(sections).forEach(function(key){
         document.getElementById(sections[key]).hidden = (key !== btn.dataset.tab);
       });
@@ -960,7 +1017,10 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
       var btn = document.createElement('button'); btn.type = 'button';
       btn.dataset.cat = g[0]; btn.dataset.spot = key;
       btn.textContent = String(spots[key].title).replace(/\s*\n\s*/g,' ');
-      btn.addEventListener('click', function(){ openSpot(key, pin); focusPin(pin); });
+      btn.addEventListener('click', function(){
+        openSpot(key, pin); focusPin(pin);
+        if(window.matchMedia('(max-width:760px)').matches) document.getElementById('mapViewport').scrollIntoView({behavior:'smooth', block:'start'});
+      });
       spotListScroll.appendChild(btn); listBtns[key] = btn;
     });
   });
@@ -1265,7 +1325,15 @@ e1:'457510', r3:'442021', v3:'51177', r4:'440690', e2:'448702', e5:'445177', g6:
     setTimeout(function(){ world.style.transition = ''; }, 350);
   }
   if(mapImg.complete){ fitToScreen(); } else { mapImg.addEventListener('load', fitToScreen); }
-  window.addEventListener('resize', fitToScreen);
+  var fittedSize = '';
+  function refitIfChanged(){
+    var size = viewport.clientWidth + 'x' + viewport.clientHeight;
+    if(!viewport.clientWidth || size === fittedSize) return;
+    fittedSize = size; fitToScreen();
+  }
+  fittedSize = viewport.clientWidth + 'x' + viewport.clientHeight;
+  window.addEventListener('resize', refitIfChanged);
+  document.querySelector('.tab[data-tab="map"]').addEventListener('click', refitIfChanged);
 
   document.getElementById('zoomIn').addEventListener('click', function(){ zoomAt(scale * 1.3); });
   document.getElementById('zoomOut').addEventListener('click', function(){ zoomAt(scale / 1.3); });
