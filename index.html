@@ -769,10 +769,14 @@ body{background:linear-gradient(180deg,#f8fff9 0,#f5fbf7 48%,#fff 100%);}
 
 <footer class="foot shell">
   <strong>태화누리 발표용 프로토타입</strong> · AI기반 ESG실천과 지속가능사회<br>정보 출처: 울산광역시 태화강 국가정원 공식 홈페이지 · 사진: <a href="https://www.ulsan.go.kr/photo/index.ulsan" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">울산사진DB</a>(울산광역시) · 벤치마킹: 대한민국 구석구석 친환경 여행 테마 페이지
+  <div style="margin-top:12px;"><a class="btn" id="adminLink" href="admin.html" style="display:inline-block; text-decoration:none;">🔒 관리자</a></div>
 </footer>
 
 <script>
 (function(){
+  // PC에서 파일로 열면 로컬 관리자 파일, 웹에서는 admin.html
+  if(location.protocol === 'file:') document.getElementById('adminLink').setAttribute('href', '태화누리_관리자.html');
+
   // ---------- tabs ----------
   var tabs = document.querySelectorAll('.tab');
   var sections = {

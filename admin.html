@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>태화누리 관리자</title>
+<style>
+  *{ box-sizing:border-box; }
+  [hidden]{ display:none !important; }
+  body{ margin:0; padding:24px 16px; background:#f4f9f5; color:#2c3f36; font-family:'Pretendard','Malgun Gothic',sans-serif; }
+  main{ max-width:760px; margin:0 auto; }
+  h1{ font-size:1.4rem; color:#16785f; }
+  .box, .item{ background:#fff; border:1px solid #cce5d4; border-radius:16px; padding:20px; }
+  .box{ max-width:380px; }
+  label{ display:block; font-size:.85rem; font-weight:700; margin-bottom:12px; }
+  input, select{ display:block; width:100%; margin-top:4px; padding:10px 12px; border:1px solid #cce5d4; border-radius:10px; font:inherit; background:#fff; }
+  button{ border:1px solid #16785f; background:#fff; color:#16785f; border-radius:999px; padding:7px 16px; font:inherit; font-size:.85rem; font-weight:700; cursor:pointer; }
+  button.solid{ background:#16785f; color:#fff; }
+  button.danger{ border-color:#C0392B; color:#C0392B; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .msg{ font-size:.85rem; min-height:1.2em; }
+  .toolbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  .toolbar select{ width:auto; margin:0; }
+  .toolbar span{ flex:1; font-size:.85rem; }
+  .item{ margin-bottom:10px; padding:14px 16px; }
+  .item.off{ background:#eef0ef; border-style:dashed; }
+  .meta{ font-size:.78rem; color:#6b7c73; }
+  .note{ margin:8px 0 12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .actions{ display:flex; gap:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>태화누리 후기 관리</h1>
+
+  <form class="box" id="loginForm">
+    <label>이메일<input type="email" id="email" autocomplete="username" required></label>
+    <label>비밀번호<input type="password" id="password" autocomplete="current-password" required></label>
+    <button type="submit" class="solid">로그인</button>
+  </form>
+
+  <section id="panel" hidden>
+    <div class="toolbar">
+      <span id="count"></span>
+      <select id="filter" aria-label="보기 필터">
+        <option value="all">전체</option>
+        <option value="visible">공개 중</option>
+        <option value="hidden">숨김</option>
+      </select>
+      <button type="button" id="reload">새로고침</button>
+      <button type="button" id="logout">로그아웃</button>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <p class="msg" id="msg" role="status"></p>
+</main>
+
+<script>
+(function(){
+  // 공개 키만 사용한다. 권한은 로그인 + DB의 RLS 정책(admins 테이블)이 검사한다.
+  var SUPABASE_URL = 'https://vfgvfeqeqnylonzinznk.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_wA0vXtcVSK7PnRDQNQFaYQ_NJtS3CXF';
+  var SPOTS = {"g1":"보라정원","g2":"무지개정원(오산못)","g3":"국화정원","g4":"초화원","g5":"자연주의정원","g6":"모네의 정원(수생식물관)","g7":"작가정원","g8":"U-5가든","g9":"향기정원","g10":"작약원","g11":"무궁화정원","e1":"은행나무정원","e2":"철새홍보관","e3":"조류생태원","e4":"숲속정원","e5":"은하수길","e6":"대나무생태원","e7":"대나무 테마정원","e8":"나비생태원","e9":"십리대숲","v1":"은하수다리","v2":"만회정","v3":"태화강 전망대","v4":"태화강 동굴피아","v5":"십리대밭교","v6":"태화루 · 태화루 스카이워크","r1":"철새광장","r2":"잔디원","r3":"오산광장","r4":"무장애 전기관람차 · 안내센터","r5":"어린이놀이터","r6":"만남의 광장","r7":"왕버들마당","r8":"소풍마당","r9":"야외공연장"};
+
+  var token = null;   // 메모리에만 보관: 새로고침하면 다시 로그인
+  var userId = null;
+  var rows = [];
+  function $(id){ return document.getElementById(id); }
+  function say(t){ $('msg').textContent = t || ''; }
+
+  function api(path, options){
+    var opt = options || {};
+    var headers = Object.assign({ apikey:SUPABASE_KEY, 'Content-Type':'application/json' }, opt.headers || {});
+    if(token) headers.Authorization = 'Bearer ' + token;
+    return fetch(SUPABASE_URL + path, Object.assign({}, opt, { headers:headers })).then(function(res){
+      return res.text().then(function(text){
+        if(!res.ok){ var err = new Error('HTTP ' + res.status); err.status = res.status; throw err; }
+        return text ? JSON.parse(text) : null;
+      });
+    });
+  }
+
+  function showLogin(message){
+    token = null; userId = null; rows = [];
+    $('list').textContent = '';
+    $('panel').hidden = true;
+    $('loginForm').hidden = false;
+    say(message);
+  }
+  function fail(e, message){
+    console.error(e);
+    if(e.status === 401) showLogin('로그인 시간이 끝났어요. 다시 로그인해주세요.');
+    else say(message);
+  }
+
+  $('loginForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var btn = this.querySelector('button'); btn.disabled = true;
+    say('로그인하는 중이에요…');
+    api('/auth/v1/token?grant_type=password', {
+      method:'POST',
+      body:JSON.stringify({ email:$('email').value.trim(), password:$('password').value })
+    }).then(function(data){
+      token = data.access_token; userId = data.user.id;
+      return api('/rest/v1/admins?select=user_id&user_id=eq.' + userId).then(function(found){
+        if(!found.length){ showLogin('관리자로 지정된 계정이 아니에요.'); return; }
+        $('password').value = '';
+        $('loginForm').hidden = true;
+        $('panel').hidden = false;
+        return load();
+      });
+    }).catch(function(err){
+      console.error(err);
+      showLogin(err.status === 400 ? '이메일 또는 비밀번호가 맞지 않아요.' : '로그인하지 못했어요. 잠시 후 다시 시도해주세요.');
+    }).then(function(){ btn.disabled = false; });
+  });
+
+  function load(){
+    say('후기를 불러오는 중이에요…');
+    return api('/rest/v1/reviews?select=id,spot_key,note,hidden,created_at&order=created_at.desc&limit=1000')
+      .then(function(data){ rows = data; render(); say(''); })
+      .catch(function(e){ fail(e, '후기를 불러오지 못했어요.'); });
+  }
+
+  function el(tag, cls, text){
+    var node = document.createElement(tag);
+    if(cls) node.className = cls;
+    if(text !== undefined) node.textContent = text;   // 후기 내용은 글자로만 넣는다
+    return node;
+  }
+
+  function render(){
+    var f = $('filter').value;
+    var hiddenCount = rows.filter(function(r){ return r.hidden; }).length;
+    $('count').textContent = '전체 ' + rows.length + '건 · 숨김 ' + hiddenCount + '건';
+    var shown = rows.filter(function(r){ return f === 'all' || (f === 'hidden') === r.hidden; });
+    var list = $('list'); list.textContent = '';
+    if(!shown.length){ list.appendChild(el('p', 'msg', '표시할 후기가 없어요.')); return; }
+    shown.forEach(function(r){
+      var item = el('div', 'item' + (r.hidden ? ' off' : ''));
+      item.appendChild(el('div', 'meta', (SPOTS[r.spot_key] || r.spot_key) + ' · ' + new Date(r.created_at).toLocaleString('ko-KR') + (r.hidden ? ' · 숨김' : '')));
+      item.appendChild(el('p', 'note', r.note));
+      var actions = el('div', 'actions');
+      var toggle = el('button', '', r.hidden ? '다시 보이기' : '숨기기'); toggle.type = 'button';
+      var del = el('button', 'danger', '삭제'); del.type = 'button';
+      toggle.addEventListener('click', function(){ change(r, { hidden:!r.hidden }, toggle); });
+      del.addEventListener('click', function(){
+        if(confirm('이 후기를 삭제할까요? 되돌릴 수 없어요.\n\n' + r.note)) change(r, null, del);
+      });
+      actions.appendChild(toggle); actions.appendChild(del);
+      item.appendChild(actions);
+      list.appendChild(item);
+    });
+  }
+
+  // patch 가 null 이면 삭제. RLS 에 막히면 오류 없이 0건이 되므로 돌려받은 행 수를 확인한다.
+  function change(row, patch, btn){
+    btn.disabled = true;
+    api('/rest/v1/reviews?id=eq.' + row.id, {
+      method:patch ? 'PATCH' : 'DELETE',
+      headers:{ Prefer:'return=representation' },
+      body:patch ? JSON.stringify(patch) : undefined
+    }).then(function(changed){
+      if(!changed || !changed.length){ say('반영되지 않았어요. 새로고침해서 확인해주세요.'); btn.disabled = false; return; }
+      if(patch) row.hidden = patch.hidden;
+      else rows = rows.filter(function(r){ return r !== row; });
+      render(); say(patch ? (patch.hidden ? '숨겼어요.' : '다시 공개했어요.') : '삭제했어요.');
+    }).catch(function(e){ btn.disabled = false; fail(e, '처리하지 못했어요.'); });
+  }
+
+  $('filter').addEventListener('change', render);
+  $('reload').addEventListener('click', load);
+  $('logout').addEventListener('click', function(){
+    api('/auth/v1/logout?scope=local', { method:'POST' }).catch(function(){}).then(function(){ showLogin('로그아웃했어요.'); });
+  });
+})();
+</script>
+</body>
+</html>
